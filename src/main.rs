@@ -16,20 +16,20 @@ fn main() {
             .and_then(|port| port.parse::<u16>().ok())
             .unwrap_or(8000),
     ))
-    .expect("Could not start server");
+    .expect("Could not build server");
 
     for request in server.incoming_requests() {
-        let Some((content_type, file)) = get_random_file() else {
+        let Some((file, content_type)) = get_random_file() else {
             continue;
         };
 
         let _ = request.respond(Response::from_file(file).with_header(
-            Header::from_bytes("content-type", content_type).expect("Could not add header"),
+            Header::from_bytes("content-type", content_type).expect("Could not build header"),
         ));
     }
 }
 
-pub fn get_random_file() -> Option<(String, File)> {
+pub fn get_random_file() -> Option<(File, String)> {
     let Some(path) = get_random_path() else {
         return None;
     };
@@ -38,7 +38,7 @@ pub fn get_random_file() -> Option<(String, File)> {
         return None;
     };
 
-    Some((from_path(path).first_or_octet_stream().to_string(), file))
+    Some((file, from_path(path).first_or_octet_stream().to_string()))
 }
 
 fn get_random_path() -> Option<PathBuf> {

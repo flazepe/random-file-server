@@ -1,6 +1,8 @@
 FROM rust:1-alpine AS builder
 WORKDIR /random-file-server
 COPY . .
+RUN apk update && apk upgrade
+RUN apk add musl-dev
 RUN cargo install --path .
 
 FROM alpine

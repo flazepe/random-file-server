@@ -14,5 +14,7 @@ services:
             - "8000:8000"
         restart: unless-stopped
         environment:
-            PORT: 8000
+            RFS_PORT: 8000
+            RFS_CACHE_TTL_SECS: 300
+            RFS_NON_REPEAT: false
 ```

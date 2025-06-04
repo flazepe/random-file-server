@@ -20,9 +20,8 @@ impl Config {
                 .ok()
                 .and_then(|cache_ttl_secs| cache_ttl_secs.trim().parse::<u64>().ok())
                 .unwrap_or(300),
-            non_repeat: var("RFS_NON_REPEAT").map_or(false, |non_repeat| {
-                non_repeat.trim().to_lowercase() == "true"
-            }),
+            non_repeat: var("RFS_NON_REPEAT")
+                .is_ok_and(|non_repeat| non_repeat.trim().to_lowercase() == "true"),
         }
     }
 }

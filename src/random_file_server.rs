@@ -1,9 +1,9 @@
 use crate::config::Config;
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use mime_guess::from_path;
-use rand::{rng, Rng};
+use rand::{Rng, rng};
 use std::{
-    fs::{read_dir, File},
+    fs::{File, read_dir},
     net::{Ipv4Addr, SocketAddrV4},
     path::PathBuf,
     time::{SystemTime, UNIX_EPOCH},
@@ -99,9 +99,7 @@ impl RandomFileServer {
 
         for entry in read_dir("files")? {
             let Ok(entry) = entry else { continue };
-            let is_file = entry
-                .file_type()
-                .map_or(false, |file_type| file_type.is_file());
+            let is_file = entry.file_type().is_ok_and(|file_type| file_type.is_file());
 
             if is_file {
                 paths.push(entry.path());

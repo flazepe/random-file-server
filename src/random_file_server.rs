@@ -1,14 +1,15 @@
-use crate::config::Config;
-use anyhow::{Result, bail};
+use crate::{config::Config, listing::Listing};
+use anyhow::{Context, Error, Result, bail};
 use mime_guess::from_path;
 use rand::{Rng, rng};
 use std::{
+    fmt::Display,
     fs::{File, read_dir},
     net::{Ipv4Addr, SocketAddrV4},
     path::PathBuf,
     time::{SystemTime, UNIX_EPOCH},
 };
-use tiny_http::{Header, Response, Server};
+use tiny_http::{Header, Request, Response, Server};
 
 pub struct RandomFileServer {
     config: Config,
@@ -36,8 +37,14 @@ impl RandomFileServer {
         };
 
         println!(
-            "Random File Server started! Port: {}, Cache TTL: {}s, Non-Repeat: {}",
-            self.config.port, self.config.cache_ttl_secs, self.config.non_repeat,
+            "Random File Server started! Port: {}, Cache TTL: {}s, Non-Repeat: {}, Listing Path: {}",
+            self.config.port,
+            self.config.cache_ttl_secs,
+            self.config.non_repeat,
+            self.config.listing_path.as_ref().map_or_else(
+                || "Disabled".into(),
+                |listing_path| format!("/{}", listing_path.trim_matches('/')),
+            ),
         );
 
         for request in server.incoming_requests() {
@@ -46,74 +53,137 @@ impl RandomFileServer {
                 continue;
             }
 
-            match self.get_random_file() {
-                Ok((file, content_type)) => {
-                    let Ok(header) = Header::from_bytes("content-type", content_type) else {
-                        bail!("Could not create header");
-                    };
-                    let response = Response::from_file(file).with_header(header);
-                    let _ = request.respond(response);
-                }
-                Err(error) => println!("Error while processing request: {error}"),
+            if let Err(error) = self.refresh_paths() {
+                println!("Error while refreshing paths: {error}");
+            }
+
+            if let Err(error) = self.handle(request) {
+                println!("Error while processing request: {error}");
             }
         }
 
         Ok(())
     }
 
-    fn get_random_file(&mut self) -> Result<(File, String)> {
-        let mut paths = if self.config.non_repeat {
+    fn handle(&mut self, request: Request) -> Result<()> {
+        if let Some(listing_path) = &self.config.listing_path {
+            if request.url().starts_with("/files/") {
+                let path = request
+                    .url()
+                    .trim_matches('/')
+                    .replace("%20", " ")
+                    .replace('+', "");
+
+                if let Ok((file, header)) = self.get_file(path) {
+                    let response = Response::from_file(file).with_header(header);
+                    request.respond(response)?;
+                }
+
+                return Ok(());
+            }
+
+            if request
+                .url()
+                .split('?')
+                .next()
+                .unwrap_or_default()
+                .trim_matches('/')
+                == listing_path.trim_matches('/')
+            {
+                let url_params = request.url().split('/').next_back().unwrap_or_default();
+                let page_split = url_params.split_once("page=").unwrap_or_default();
+                let page = page_split
+                    .1
+                    .split('&')
+                    .next()
+                    .unwrap_or_default()
+                    .parse::<usize>()
+                    .unwrap_or(1);
+
+                let response = Listing::new(&self.paths, page).into();
+                request.respond(response)?;
+
+                return Ok(());
+            }
+        }
+
+        if let Ok((file, header)) = self.get_random_file() {
+            let response = Response::from_file(file).with_header(header);
+            request.respond(response)?;
+        }
+
+        Ok(())
+    }
+
+    fn get_file<T: Display>(&mut self, path: T) -> Result<(File, Header)> {
+        let path = path.to_string();
+        let path = self
+            .paths
+            .iter()
+            .find(|entry| entry.to_string_lossy() == path)
+            .context("File not found")?;
+
+        let file = File::open(path)?;
+        let content_type = from_path(path).first_or_octet_stream().to_string();
+        let header = Header::from_bytes("content-type", content_type)
+            .map_err(|_| Error::msg("Could not create header"))?;
+
+        Ok((file, header))
+    }
+
+    fn get_random_file(&mut self) -> Result<(File, Header)> {
+        let path = if self.config.non_repeat {
             let paths_unused = self
-                .get_paths()?
-                .into_iter()
+                .paths
+                .iter()
                 .filter(|path| !self.paths_used.contains(path))
-                .collect::<Vec<PathBuf>>();
+                .collect::<Vec<&PathBuf>>();
 
             if paths_unused.is_empty() {
                 self.paths_used = vec![];
-                self.get_paths()?
+                &self.paths[rng().random_range(0..self.paths.len())]
             } else {
-                paths_unused
+                paths_unused[rng().random_range(0..paths_unused.len())]
             }
         } else {
-            self.get_paths()?
+            &self.paths[rng().random_range(0..self.paths.len())]
         };
 
-        let path = paths.remove(rng().random_range(0..paths.len()));
-        let file = File::open(&path)?;
-        let content_type = from_path(&path).first_or_octet_stream().to_string();
-
         if self.config.non_repeat {
-            self.paths_used.push(path);
+            self.paths_used.push(path.clone());
         }
 
-        Ok((file, content_type))
+        let file = File::open(path)?;
+        let content_type = from_path(path).first_or_octet_stream().to_string();
+        let header = Header::from_bytes("content-type", content_type)
+            .map_err(|_| Error::msg("Could not create header"))?;
+
+        Ok((file, header))
     }
 
-    fn get_paths(&mut self) -> Result<Vec<PathBuf>> {
+    fn refresh_paths(&mut self) -> Result<()> {
         if Self::get_current_timestamp() < self.paths_last_updated + self.config.cache_ttl_secs {
-            return Ok(self.paths.clone());
+            return Ok(());
         }
 
-        let mut paths = vec![];
+        self.paths.clear();
 
         for entry in read_dir("files")? {
             let Ok(entry) = entry else { continue };
             let is_file = entry.file_type().is_ok_and(|file_type| file_type.is_file());
 
             if is_file {
-                paths.push(entry.path());
+                self.paths.push(entry.path());
             }
         }
 
-        if paths.is_empty() {
+        if self.paths.is_empty() {
             bail!("No paths found");
         }
 
-        self.paths = paths.clone();
         self.paths_last_updated = Self::get_current_timestamp();
 
-        Ok(paths)
+        Ok(())
     }
 
     fn get_current_timestamp() -> u64 {

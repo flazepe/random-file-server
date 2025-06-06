@@ -12,14 +12,15 @@ static FILES_PER_PAGE: usize = 20;
 
 pub struct Listing<'a> {
     paths: Take<Skip<Iter<'a, PathBuf>>>,
+    total_paths: usize,
     page: usize,
     total_pages: usize,
 }
 
 impl<'a> Listing<'a> {
     pub fn new(paths: &'a [PathBuf], page: usize) -> Self {
-        let total_pages = (paths.len() as f64 / FILES_PER_PAGE as f64).round() as usize;
-
+        let total_paths = paths.len();
+        let total_pages = (total_paths as f64 / FILES_PER_PAGE as f64).round() as usize;
         let paths = paths
             .iter()
             .skip((page.max(1) - 1) * FILES_PER_PAGE)
@@ -27,6 +28,7 @@ impl<'a> Listing<'a> {
 
         Self {
             paths,
+            total_paths,
             page,
             total_pages,
         }
@@ -35,6 +37,8 @@ impl<'a> Listing<'a> {
 
 impl From<Listing<'_>> for Response<Cursor<Vec<u8>>> {
     fn from(value: Listing) -> Self {
+        let info_element = format!("<div>{} total files</div>", value.total_paths);
+
         let mut file_elements = String::new();
 
         for path in value.paths {
@@ -98,11 +102,14 @@ impl From<Listing<'_>> for Response<Cursor<Vec<u8>>> {
                             align-items: center;
                             justify-items: center;
                             gap: 20px;
+                            margin: 20px;
                         }}
 
                         .paginator {{
                             display: flex;
+                            flex-wrap: wrap;
                             gap: 10px;
+                            justify-content: center;
                             border-radius: 10px;
                             background-color: #f1f1f1;
                             padding: 10px;
@@ -171,6 +178,7 @@ impl From<Listing<'_>> for Response<Cursor<Vec<u8>>> {
                 </head>
                 <body>
                 <div class="container">
+                    {info_element}
                     <div class="paginator">{paginator_elements}</div>
                     <div class="files">{file_elements}</div>
                     <div class="paginator">{paginator_elements}</div>

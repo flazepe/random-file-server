@@ -1,6 +1,7 @@
 use crate::{config::Config, listing::Listing};
 use anyhow::{Context, Error, Result, bail};
 use mime_guess::from_path;
+use natord::compare_ignore_case;
 use rand::{Rng, rng};
 use std::{
     fmt::Display,
@@ -182,9 +183,10 @@ impl RandomFileServer {
         }
 
         self.paths.sort_by(|a, b| {
-            b.to_string_lossy()
-                .to_lowercase()
-                .cmp(&a.to_string_lossy().to_lowercase())
+            compare_ignore_case(
+                &b.to_string_lossy().to_lowercase(),
+                &a.to_string_lossy().to_lowercase(),
+            )
         });
 
         self.paths_last_updated = Self::get_current_timestamp();

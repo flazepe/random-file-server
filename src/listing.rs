@@ -1,26 +1,29 @@
 use html_escape::encode_text;
 use mime_guess::from_path;
-use std::{io::Cursor, path::PathBuf};
+use std::{
+    io::Cursor,
+    iter::{Skip, Take},
+    path::PathBuf,
+    slice::Iter,
+};
 use tiny_http::{Header, Response};
 
 static FILES_PER_PAGE: usize = 20;
 
-pub struct Listing {
-    paths: Vec<PathBuf>,
+pub struct Listing<'a> {
+    paths: Take<Skip<Iter<'a, PathBuf>>>,
     page: usize,
     total_pages: usize,
 }
 
-impl Listing {
-    pub fn new(paths: &[PathBuf], page: usize) -> Self {
+impl<'a> Listing<'a> {
+    pub fn new(paths: &'a [PathBuf], page: usize) -> Self {
         let total_pages = (paths.len() as f64 / FILES_PER_PAGE as f64).round() as usize;
 
         let paths = paths
             .iter()
             .skip((page.max(1) - 1) * FILES_PER_PAGE)
-            .take(FILES_PER_PAGE)
-            .cloned()
-            .collect();
+            .take(FILES_PER_PAGE);
 
         Self {
             paths,
@@ -30,12 +33,12 @@ impl Listing {
     }
 }
 
-impl From<Listing> for Response<Cursor<Vec<u8>>> {
+impl From<Listing<'_>> for Response<Cursor<Vec<u8>>> {
     fn from(value: Listing) -> Self {
         let mut file_elements = String::new();
 
         for path in value.paths {
-            let mime_type = from_path(&path).first_or_octet_stream();
+            let mime_type = from_path(path).first_or_octet_stream();
 
             let mut elements = format!(
                 r#"<a href="{}" target="_blank">{}</a>"#,

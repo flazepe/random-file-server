@@ -182,12 +182,8 @@ impl RandomFileServer {
             bail!("No paths found");
         }
 
-        self.paths.sort_by(|a, b| {
-            compare_ignore_case(
-                &b.to_string_lossy().to_lowercase(),
-                &a.to_string_lossy().to_lowercase(),
-            )
-        });
+        self.paths
+            .sort_by(|a, b| compare_ignore_case(&b.to_string_lossy(), &a.to_string_lossy()));
 
         self.paths_last_updated = Self::get_current_timestamp();
 

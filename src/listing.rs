@@ -20,7 +20,7 @@ pub struct Listing<'a> {
 impl<'a> Listing<'a> {
     pub fn new(paths: &'a [PathBuf], page: usize) -> Self {
         let total_paths = paths.len();
-        let total_pages = (total_paths as f64 / FILES_PER_PAGE as f64).round() as usize;
+        let total_pages = (total_paths as f64 / FILES_PER_PAGE as f64).ceil() as usize;
         let paths = paths
             .iter()
             .skip((page.max(1) - 1) * FILES_PER_PAGE)

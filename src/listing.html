@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<title>File Listing</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<style>
+			:root {
+				--background-color: #eee;
+				--color: #000;
+				--foreground-color: #ddd;
+			}
+
+			@media (prefers-color-scheme: dark) {
+				:root {
+					--background-color: #000;
+					--color: #fff;
+					--foreground-color: #222;
+				}
+			}
+
+			body {
+				background-color: var(--background-color);
+				color: var(--color);
+				font-family: Segoe UI, Arial, Helvetica, sans-serif;
+			}
+
+			.container {
+				align-items: center;
+				display: flex;
+				flex-direction: column;
+				gap: 20px;
+				justify-items: center;
+				margin: 20px;
+			}
+
+			.paginator {
+				border: 5px solid var(--foreground-color);
+				border-radius: 10px;
+				display: flex;
+				flex-wrap: wrap;
+				gap: 10px;
+				justify-content: center;
+				padding: 10px;
+
+				a {
+					align-items: center;
+					border-radius: 10px;
+					display: flex;
+					height: 20px;
+					justify-content: center;
+					min-width: 20px;
+					padding: 5px;
+					text-decoration: none;
+				}
+
+				a {
+					background-color: var(--foreground-color);
+					color: var(--color);
+				}
+
+				a.current {
+					background-color: #3170bd;
+					color: #fff;
+				}
+			}
+
+			.files {
+				display: flex;
+				flex-direction: column;
+				gap: 20px;
+				justify-content: center;
+			}
+
+			@media only screen and (min-width: 512px) {
+				.files {
+					flex-direction: row;
+					flex-wrap: wrap;
+				}
+			}
+
+			.file {
+				align-items: center;
+				background-color: var(--foreground-color);
+				border-radius: 10px;
+				display: flex;
+				flex-direction: column;
+				gap: 20px;
+				justify-content: space-between;
+				padding: 20px;
+
+				a {
+					border-bottom: 1px solid var(--color);
+					color: var(--color);
+					text-decoration: none;
+
+					&:visited {
+						color: var(--color);
+					}
+				}
+
+				img,
+				video {
+					width: 100%;
+				}
+			}
+
+			@media only screen and (min-width: 512px) {
+				.file {
+					img,
+					video {
+						width: 300px;
+					}
+				}
+			}
+		</style>
+	</head>
+	<body>
+		<div class="container">
+			{info_element}
+			<div class="paginator">{paginator_elements}</div>
+			<div class="files">{file_elements}</div>
+			<div class="paginator">{paginator_elements}</div>
+			{info_element}
+		</div>
+	</body>
+</html>

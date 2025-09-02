@@ -42,18 +42,14 @@ impl From<Listing<'_>> for Response<Cursor<Vec<u8>>> {
         let mut file_elements = String::new();
 
         for path in value.paths {
-            let mime_type = from_path(path).first_or_octet_stream();
+            let path_str = path.to_string_lossy();
 
             let mut elements = format!(
-                r#"<a href="{}" target="_blank">{}</a>"#,
-                path.to_string_lossy(),
-                encode_text(
-                    path.to_string_lossy()
-                        .split('/')
-                        .next_back()
-                        .unwrap_or_default(),
-                ),
+                r#"<a href="{path_str}" target="_blank">{}</a>"#,
+                encode_text(path_str.split('/').next_back().unwrap_or_default(),),
             );
+
+            let mime_type = from_path(path).first_or_octet_stream();
 
             match mime_type
                 .essence_str()
@@ -62,14 +58,13 @@ impl From<Listing<'_>> for Response<Cursor<Vec<u8>>> {
                 .unwrap_or_default()
             {
                 tag @ ("audio" | "video") => {
-                    elements += &format!(
-                        r#"<{tag} src="{}" controls></{tag}>"#,
-                        path.to_string_lossy(),
-                    )
+                    elements += &format!(r#"<{tag} src="{path_str}" controls></{tag}>"#)
                 }
-                "image" => elements += &format!(r#"<img src="{}" />"#, path.to_string_lossy()),
+                "image" => elements += &format!(r#"<img src="{path_str}" />"#),
                 _ => elements += r#"<img />"#,
             }
+
+            elements += &format!("<div>{mime_type}</div>");
 
             file_elements += &format!(r#"<div class="file">{elements}</div>"#);
         }
@@ -84,109 +79,10 @@ impl From<Listing<'_>> for Response<Cursor<Vec<u8>>> {
             }
         }
 
-        let html = format!(
-            r#"
-			<!DOCTYPE html>
-			<html lang="en">
-                <head>
-                    <title>File Listing</title>
-                    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-                    <style>
-                        body {{
-                            font-family: Segoe UI, Arial, Helvetica, sans-serif;
-                        }}
-
-                        .container {{
-                            display: flex;
-                            flex-direction: column;
-                            align-items: center;
-                            justify-items: center;
-                            gap: 20px;
-                            margin: 20px;
-                        }}
-
-                        .paginator {{
-                            display: flex;
-                            flex-wrap: wrap;
-                            gap: 10px;
-                            justify-content: center;
-                            border-radius: 10px;
-                            background-color: #f1f1f1;
-                            padding: 10px;
-
-                            a {{
-                                display: flex;
-                                align-items: center;
-                                justify-content: center;
-                                text-decoration: none;
-                                padding: 5px;
-                                border-radius: 50%;
-                                width: 20px;
-                                height: 20px;
-                            }}
-
-                            a {{
-                                background-color: #ccc;
-                                color: #000;
-                            }}
-
-                            a.current {{
-                                background-color: #3170bd;
-                                color: #fff;
-                            }}
-                        }}
-
-                        .files {{
-                            display: flex;
-                            flex-direction: column;
-                            align-items: center;
-                            justify-content: center;
-                            gap: 20px;
-                        }}
-
-                        @media only screen and (min-width: 512px) {{
-                            .files {{
-                                flex-direction: row;
-                                flex-wrap: wrap;
-                            }}
-                        }}
-
-                        .file {{
-                            display: flex;
-                            flex-direction: column;
-                            align-items: center;
-                            gap: 20px;
-                            word-break: break-all;
-
-                            a {{
-                                text-decoration: none;
-                            }}
-
-                            img, video {{
-                                width: 80%;
-                            }}
-                        }}
-
-                        @media only screen and (min-width: 512px) {{
-                            .file {{
-                                img, video {{
-                                    width: 300px;
-                                }}
-                            }}
-                        }}
-                    </style>
-                </head>
-                <body>
-                <div class="container">
-                    {info_element}
-                    <div class="paginator">{paginator_elements}</div>
-                    <div class="files">{file_elements}</div>
-                    <div class="paginator">{paginator_elements}</div>
-                </div>
-                </body>
-			</html>
-			"#
-        );
+        let html = include_str!("listing.html")
+            .replace("{info_element}", &info_element)
+            .replace("{paginator_elements}", &paginator_elements)
+            .replace("{file_elements}", &file_elements);
 
         let mut response = Response::from_string(html);
 

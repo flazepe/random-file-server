@@ -63,7 +63,7 @@ impl From<Listing<'_>> for Response<Cursor<Vec<u8>>> {
 
             let mut elements = format!(
                 r#"<a href="{path_str}" target="_blank">{}</a>"#,
-                file.path.file_name().unwrap_or_default().display(),
+                encode_text(&file.path.file_name().unwrap_or_default().to_string_lossy()),
             );
 
             match file.mime.type_().as_str() {

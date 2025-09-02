@@ -1,9 +1,9 @@
+use crate::{file::File, traits::Commas};
 use html_escape::encode_text;
-use mime_guess::from_path;
+use humansize::{DECIMAL, format_size};
 use std::{
     io::Cursor,
     iter::{Skip, Take},
-    path::PathBuf,
     slice::Iter,
 };
 use tiny_http::{Header, Response};
@@ -11,33 +11,40 @@ use tiny_http::{Header, Response};
 static FILES_PER_PAGE: usize = 20;
 
 pub struct Listing<'a> {
-    paths: Take<Skip<Iter<'a, PathBuf>>>,
-    total_paths: usize,
-    page: usize,
+    files: Take<Skip<Iter<'a, File>>>,
+    total_files: usize,
+    total_size: u64,
     total_pages: usize,
+    page: usize,
 }
 
 impl<'a> Listing<'a> {
-    pub fn new(paths: &'a [PathBuf], page: usize) -> Self {
-        let total_paths = paths.len();
-        let total_pages = (total_paths as f64 / FILES_PER_PAGE as f64).ceil() as usize;
-        let paths = paths
+    pub fn new(files: &'a [File], page: usize) -> Self {
+        let total_files = files.len();
+        let total_size = files.iter().fold(0, |acc, file| acc + file.size);
+        let total_pages = (total_files as f64 / FILES_PER_PAGE as f64).ceil() as usize;
+        let files = files
             .iter()
             .skip((page.max(1) - 1) * FILES_PER_PAGE)
             .take(FILES_PER_PAGE);
 
         Self {
-            paths,
-            total_paths,
-            page,
+            files,
+            total_files,
+            total_size,
             total_pages,
+            page,
         }
     }
 }
 
 impl From<Listing<'_>> for Response<Cursor<Vec<u8>>> {
     fn from(value: Listing) -> Self {
-        let info_element = format!("<div>{} total files</div>", value.total_paths);
+        let info_element = format!(
+            "<div>{} total files - {}</div>",
+            value.total_files.commas(),
+            format_size(value.total_size, DECIMAL),
+        );
 
         let mut paginator_elements = String::new();
 
@@ -51,17 +58,15 @@ impl From<Listing<'_>> for Response<Cursor<Vec<u8>>> {
 
         let mut file_elements = String::new();
 
-        for path in value.paths {
-            let path_str = path.to_string_lossy();
+        for file in value.files {
+            let path_str = file.path.to_string_lossy();
 
             let mut elements = format!(
                 r#"<a href="{path_str}" target="_blank">{}</a>"#,
-                encode_text(path_str.split('/').next_back().unwrap_or_default()),
+                file.path.file_name().unwrap_or_default().display(),
             );
 
-            let mime_type = from_path(path).first_or_octet_stream();
-
-            match mime_type.type_().as_str() {
+            match file.mime.type_().as_str() {
                 tag @ ("audio" | "video") => {
                     elements += &format!(r#"<{tag} src="{path_str}" controls></{tag}>"#)
                 }
@@ -69,7 +74,11 @@ impl From<Listing<'_>> for Response<Cursor<Vec<u8>>> {
                 _ => elements += r#"<img />"#,
             }
 
-            elements += &format!("<div>{mime_type}</div>");
+            elements += &format!(
+                "<div>{} - {}</div>",
+                file.mime,
+                format_size(file.size, DECIMAL),
+            );
 
             file_elements += &format!(r#"<div class="file">{elements}</div>"#);
         }

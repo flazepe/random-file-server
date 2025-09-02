@@ -1,6 +1,8 @@
 mod config;
+mod file;
 mod listing;
 mod random_file_server;
+mod traits;
 
 use anyhow::Result;
 use random_file_server::RandomFileServer;

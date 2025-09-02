@@ -39,6 +39,16 @@ impl From<Listing<'_>> for Response<Cursor<Vec<u8>>> {
     fn from(value: Listing) -> Self {
         let info_element = format!("<div>{} total files</div>", value.total_paths);
 
+        let mut paginator_elements = String::new();
+
+        for page in 1..=value.total_pages {
+            if page == value.page {
+                paginator_elements += &format!(r#"<a class="current">{page}</a>"#);
+            } else {
+                paginator_elements += &format!(r#"<a href="?page={page}">{page}</a>"#);
+            }
+        }
+
         let mut file_elements = String::new();
 
         for path in value.paths {
@@ -46,17 +56,12 @@ impl From<Listing<'_>> for Response<Cursor<Vec<u8>>> {
 
             let mut elements = format!(
                 r#"<a href="{path_str}" target="_blank">{}</a>"#,
-                encode_text(path_str.split('/').next_back().unwrap_or_default(),),
+                encode_text(path_str.split('/').next_back().unwrap_or_default()),
             );
 
             let mime_type = from_path(path).first_or_octet_stream();
 
-            match mime_type
-                .essence_str()
-                .split('/')
-                .next()
-                .unwrap_or_default()
-            {
+            match mime_type.type_().as_str() {
                 tag @ ("audio" | "video") => {
                     elements += &format!(r#"<{tag} src="{path_str}" controls></{tag}>"#)
                 }
@@ -67,16 +72,6 @@ impl From<Listing<'_>> for Response<Cursor<Vec<u8>>> {
             elements += &format!("<div>{mime_type}</div>");
 
             file_elements += &format!(r#"<div class="file">{elements}</div>"#);
-        }
-
-        let mut paginator_elements = String::new();
-
-        for i in 1..=value.total_pages {
-            if i == value.page {
-                paginator_elements += &format!(r#"<a class="current">{i}</a>"#);
-            } else {
-                paginator_elements += &format!(r#"<a href="?page={i}">{i}</a>"#);
-            }
         }
 
         let html = include_str!("listing.html")

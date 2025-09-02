@@ -4,7 +4,6 @@ use mime_guess::from_path;
 use natord::compare_ignore_case;
 use rand::{Rng, rng};
 use std::{
-    fmt::Display,
     fs::{File, read_dir},
     net::{Ipv4Addr, SocketAddrV4},
     path::PathBuf,
@@ -75,7 +74,7 @@ impl RandomFileServer {
                     .replace("%20", " ")
                     .replace('+', "");
 
-                if let Ok((file, header)) = self.get_file(path) {
+                if let Ok((file, header)) = self.get_file(&path) {
                     let response = Response::from_file(file).with_header(header);
                     request.respond(response)?;
                 }
@@ -116,17 +115,15 @@ impl RandomFileServer {
         Ok(())
     }
 
-    fn get_file<T: Display>(&mut self, path: T) -> Result<(File, Header)> {
-        let path = path.to_string();
+    fn get_file(&mut self, path: &str) -> Result<(File, Header)> {
         let path = self
             .paths
             .iter()
             .find(|entry| entry.to_string_lossy() == path)
             .context("File not found")?;
-
         let file = File::open(path)?;
-        let content_type = from_path(path).first_or_octet_stream().to_string();
-        let header = Header::from_bytes("content-type", content_type)
+        let content_type = from_path(path).first_or_octet_stream();
+        let header = Header::from_bytes("content-type", content_type.essence_str())
             .map_err(|_| Error::msg("Could not create header"))?;
 
         Ok((file, header))
@@ -155,8 +152,8 @@ impl RandomFileServer {
         }
 
         let file = File::open(path)?;
-        let content_type = from_path(path).first_or_octet_stream().to_string();
-        let header = Header::from_bytes("content-type", content_type)
+        let content_type = from_path(path).first_or_octet_stream();
+        let header = Header::from_bytes("content-type", content_type.essence_str())
             .map_err(|_| Error::msg("Could not create header"))?;
 
         Ok((file, header))

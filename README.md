@@ -17,4 +17,5 @@ services:
             RFS_PORT: 8000
             RFS_CACHE_TTL_SECS: 300
             RFS_NON_REPEAT: false
+            RFS_LISTING_PATH: listing # Optional, unset to disable listing page
 ```
